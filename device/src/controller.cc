@@ -282,7 +282,14 @@ static future_t* start_up(void) {
   }
 
   if (!HCI_READ_ENCR_KEY_SIZE_SUPPORTED(supported_commands)) {
-    LOG(FATAL) << " Controller must support Read Encryption Key Size command";
+#ifdef BTM_ALLOW_UNVERIFIED_BR_EDR_KEY_SIZE
+    if (BTM_ALLOW_UNVERIFIED_BR_EDR_KEY_SIZE(HCI_ERR_ILLEGAL_COMMAND, &bt_version)) {
+      LOG(WARNING) << "Legacy device policy: encryption key size cannot be verified";
+    } else
+#endif
+    {
+      LOG(FATAL) << " Controller must support Read Encryption Key Size command";
+    }
   }
 
   readable = true;
