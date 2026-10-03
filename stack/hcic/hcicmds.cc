@@ -28,6 +28,7 @@
 #include "btu.h"
 #include "hcidefs.h"
 #include "hcimsgs.h"
+#include "device/include/controller.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -1312,13 +1313,21 @@ void btsnd_hcic_read_rssi(uint16_t handle) {
 static void read_encryption_key_size_complete(
     ReadEncKeySizeCb cb, uint16_t expected_handle, uint8_t* return_parameters,
     uint16_t return_parameters_length) {
+#ifdef BTM_ALLOW_UNVERIFIED_BR_EDR_KEY_SIZE
+  const bt_version_t* version = controller_get_interface()->get_bt_version();
+  if (return_parameters_length == 1 &&
+      BTM_ALLOW_UNVERIFIED_BR_EDR_KEY_SIZE(return_parameters[0], version)) {
+    std::move(cb).Run(return_parameters[0], expected_handle, 0, true);
+    return;
+  }
+#endif
   // An unknown command may return only its status byte. Never read a handle
   // or key size from a truncated response, or trust a mismatched handle.
   if (return_parameters_length != 4) {
     uint8_t status = HCI_ERR_ILLEGAL_PARAMETER_FMT;
     if (return_parameters_length == 1 && return_parameters[0] != HCI_SUCCESS)
       status = return_parameters[0];
-    std::move(cb).Run(status, expected_handle, 0);
+    std::move(cb).Run(status, expected_handle, 0, false);
     return;
   }
   uint8_t status;
@@ -1329,10 +1338,10 @@ static void read_encryption_key_size_complete(
   STREAM_TO_UINT8(key_size, return_parameters);
 
   if (handle != expected_handle) {
-    std::move(cb).Run(HCI_ERR_ILLEGAL_PARAMETER_FMT, expected_handle, 0);
+    std::move(cb).Run(HCI_ERR_ILLEGAL_PARAMETER_FMT, expected_handle, 0, false);
     return;
   }
-  std::move(cb).Run(status, handle, key_size);
+  std::move(cb).Run(status, handle, key_size, false);
 }
 
 void btsnd_hcic_read_encryption_key_size(uint16_t handle, ReadEncKeySizeCb cb) {
