@@ -1309,8 +1309,18 @@ void btsnd_hcic_read_rssi(uint16_t handle) {
   btu_hcif_send_cmd(LOCAL_BR_EDR_CONTROLLER_ID, p);
 }
 
-static void read_encryption_key_size_complete(ReadEncKeySizeCb cb, uint8_t* return_parameters,
-                                              uint16_t return_parameters_length) {
+static void read_encryption_key_size_complete(
+    ReadEncKeySizeCb cb, uint16_t expected_handle, uint8_t* return_parameters,
+    uint16_t return_parameters_length) {
+  // An unknown command may return only its status byte. Never read a handle
+  // or key size from a truncated response, or trust a mismatched handle.
+  if (return_parameters_length != 4) {
+    uint8_t status = HCI_ERR_ILLEGAL_PARAMETER_FMT;
+    if (return_parameters_length == 1 && return_parameters[0] != HCI_SUCCESS)
+      status = return_parameters[0];
+    std::move(cb).Run(status, expected_handle, 0);
+    return;
+  }
   uint8_t status;
   uint16_t handle;
   uint8_t key_size;
@@ -1318,6 +1328,10 @@ static void read_encryption_key_size_complete(ReadEncKeySizeCb cb, uint8_t* retu
   STREAM_TO_UINT16(handle, return_parameters);
   STREAM_TO_UINT8(key_size, return_parameters);
 
+  if (handle != expected_handle) {
+    std::move(cb).Run(HCI_ERR_ILLEGAL_PARAMETER_FMT, expected_handle, 0);
+    return;
+  }
   std::move(cb).Run(status, handle, key_size);
 }
 
@@ -1329,8 +1343,9 @@ void btsnd_hcic_read_encryption_key_size(uint16_t handle, ReadEncKeySizeCb cb) {
   uint8_t* p = param;
   UINT16_TO_STREAM(p, handle);
 
-  btu_hcif_send_cmd_with_cb(FROM_HERE, HCI_READ_ENCR_KEY_SIZE, param, len,
-                            base::Bind(&read_encryption_key_size_complete, base::Passed(&cb)));
+  btu_hcif_send_cmd_with_cb(
+      FROM_HERE, HCI_READ_ENCR_KEY_SIZE, param, len,
+      base::Bind(&read_encryption_key_size_complete, base::Passed(&cb), handle));
 }
 
 void btsnd_hcic_read_failed_contact_counter(uint16_t handle) {
