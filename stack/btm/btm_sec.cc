@@ -368,8 +368,9 @@ bool BTM_SecRegister(const tBTM_APPL_INFO* p_cb_info) {
     BTM_TRACE_EVENT("%s SMP_Register( btm_proc_smp_cback )", __func__);
     SMP_Register(btm_proc_smp_cback);
     Octet16 zero{0};
-    /* if no IR is loaded, need to regenerate all the keys */
-    if (btm_cb.devcb.id_keys.ir == zero) {
+    /* LE identity generation sends LE Rand, which classic controllers lack. */
+    if (controller_get_interface()->supports_ble() &&
+        btm_cb.devcb.id_keys.ir == zero) {
       btm_ble_reset_id();
     }
   } else {
