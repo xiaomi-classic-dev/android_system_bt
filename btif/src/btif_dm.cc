@@ -1850,12 +1850,21 @@ static void btif_dm_upstreams_evt(uint16_t event, char* p_param) {
 
     case BTA_DM_LE_FEATURES_READ: {
       tBTM_BLE_VSC_CB cmn_vsc_cb;
-      bt_local_le_features_t local_le_features;
+      bt_local_le_features_t local_le_features = {};
       char buf[512];
       bt_property_t prop;
       prop.type = BT_PROPERTY_LOCAL_LE_FEATURES;
       prop.val = (void*)buf;
       prop.len = sizeof(buf);
+
+      // Classic-only controllers cannot answer the LE feature queries below.
+      if (!controller_get_interface()->supports_ble()) {
+        prop.len = sizeof(local_le_features);
+        memcpy(prop.val, &local_le_features, prop.len);
+        HAL_CBACK(bt_hal_cbacks, adapter_properties_cb, BT_STATUS_SUCCESS, 1,
+                  &prop);
+        break;
+      }
 
       /* LE features are not stored in storage. Should be retrived from stack */
       BTM_BleGetVendorCapabilities(&cmn_vsc_cb);
