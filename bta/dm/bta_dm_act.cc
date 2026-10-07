@@ -44,6 +44,7 @@
 #include "btm_int.h"
 #include "btu.h"
 #include "device/include/interop.h"
+#include "device/include/controller.h"
 #include "gap_api.h" /* For GAP_BleReadPeerPrefConnParams */
 #include "l2c_api.h"
 #include "osi/include/log.h"
@@ -429,14 +430,15 @@ static void bta_dm_sys_hw_cback(tBTA_SYS_HW_EVT status) {
     BTM_RegBusyLevelNotif(bta_dm_bl_change_cback, NULL,
                           BTM_BL_UPDATE_MASK | BTM_BL_ROLE_CHG_MASK);
 
+    if (controller_get_interface()->supports_ble()) {
 #if (BLE_VND_INCLUDED == TRUE)
-    BTM_BleReadControllerFeatures(bta_dm_ctrl_features_rd_cmpl_cback);
+      BTM_BleReadControllerFeatures(bta_dm_ctrl_features_rd_cmpl_cback);
 #else
-    /* If VSC multi adv commands are available, advertising will be initialized
-     * when capabilities are read. If they are not avaliable, initialize
-     * advertising here */
-    btm_ble_adv_init();
+      /* If VSC multi adv commands are available, advertising will be initialized
+       * when capabilities are read. Otherwise initialize advertising here. */
+      btm_ble_adv_init();
 #endif
+    }
 
     /* Earlier, we used to invoke BTM_ReadLocalAddr which was just copying the
        bd_addr
